@@ -7,7 +7,16 @@ Class {
 		'comps',
 		'selected',
 		'completionCounts',
-		'chunkMap'
+		'chunkMap',
+		'maxSentence',
+		'cutoff',
+		'maxWords',
+		'bucketSizeWords',
+		'bucketCounts',
+		'orderFiles',
+		'ordersBaseDir',
+		'orderCache',
+		'keysWithCompletionsCache'
 	],
 	#category : 'InternerExplorer',
 	#package : 'InternerExplorer'
@@ -28,6 +37,7 @@ InternerModel class >> fromIndexFile: aPath [
   json := NeoJSONReader fromString: (aPath asFileReference contents).
   base := aPath asFileReference parent.
   ^ self fromParsedIndex: json baseDir: base
+
 ]
 
 { #category : 'as yet unclassified' }
@@ -56,10 +66,16 @@ InternerModel class >> fromParsedIndex: parsed [
 
 { #category : 'accessing' }
 InternerModel class >> fromParsedIndex: parsed baseDir: baseDir [
-  | vocab entries |
+  | vocab entries model |
   vocab := parsed at: 'vocab' ifAbsent: [ #() ].
   entries := parsed at: 'keys' ifAbsent: [ #() ].
-  ^ self new loadIndexVocab: vocab keysEntries: entries baseDir: baseDir
+  model := self new.
+  model bucketSizeWords: (parsed at: 'bucket_size_words' ifAbsent: [ 500 ]).
+  model maxWords: (parsed at: 'max_words' ifAbsent: [ 0 ]).
+  model cutoff: model bucketSizeWords.  "start at first bucket (e.g., 500)"
+  model orderFiles: (parsed at: 'order_bucket_files' ifAbsent: [ #() ]).
+  model ordersBaseDir: baseDir.  "FileReference"
+  ^ model loadIndexVocab: vocab keysEntries: entries baseDir: baseDir
 
 ]
 
@@ -122,6 +138,50 @@ InternerModel class >> joinWords: words [
       ifFalse: [ acc , ' ' , w asString ] ]
 ]
 
+{ #category : 'as yet unclassified' }
+InternerModel >> bucketCount [
+  | bsz |
+  bsz := (self bucketSizeWords ifNil: [ 0 ]) max: 1.
+  ^ ((self maxWords ifNil: [ 0 ]) + (bsz - 1)) // bsz
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> bucketCounts [
+  bucketCounts ifNil: [ bucketCounts := Dictionary new ].
+  ^ bucketCounts
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> bucketCounts: aDict [
+  bucketCounts := aDict
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> bucketSizeWords [
+	^ bucketSizeWords ifNil: [ 500 ]
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> bucketSizeWords: n [    
+	bucketSizeWords := n
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> bumpBucket: delta [
+  | new bsz |
+  bsz := (self bucketSizeWords ifNil: [ 0 ]) max: 1.
+  new := self clampBucket: (self currentBucketIndex + delta).
+  self cutoff: (new + 1) * bsz.
+  self selected ifNotNil: [ :k | k displayCutoff: self cutoff ].
+  ^ new
+
+]
+
 { #category : 'accessing' }
 InternerModel >> chunkMap [
   chunkMap ifNil: [ chunkMap := Dictionary new ].
@@ -132,6 +192,14 @@ InternerModel >> chunkMap [
 { #category : 'accessing' }
 InternerModel >> chunkMap: aDict [
   chunkMap := aDict
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> clampBucket: idx [
+  | maxB |
+  maxB := (self bucketCount - 1) max: 0.
+  ^ (idx max: 0) min: maxB
 
 ]
 
@@ -153,6 +221,61 @@ InternerModel >> comps [
 ]
 
 { #category : 'as yet unclassified' }
+InternerModel >> countForKey: aKey bucket: bucketIndex [
+  | buckets |
+  buckets := self bucketCounts at: aKey name ifAbsent: [ #() ].
+  buckets isEmpty ifTrue: [ ^ 0 ].
+  (bucketIndex + 1) > buckets size ifTrue: [ ^ buckets last ].
+  ^ buckets at: bucketIndex + 1
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> currentBucketIndex [
+  | bsz maxB |
+  bsz := (self bucketSizeWords ifNil: [ 0 ]) max: 1.
+  maxB := (self bucketCount - 1) max: 0.
+  ^ (((self cutoff max: bsz) - 1) // bsz) min: maxB
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> cutoff [
+  cutoff ifNil: [ cutoff := self maxSentence ].
+  ^ cutoff
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> cutoff: aNumber [
+  cutoff := aNumber
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> deltaForKey: aKey bucket: bucketIndex [
+  | buckets curr prev |
+  buckets := self bucketCounts at: aKey name ifAbsent: [ #() ].
+  buckets isEmpty ifTrue: [ ^ 0 ].
+  curr := buckets at: bucketIndex + 1 ifAbsent: [ buckets last ].
+  prev := bucketIndex = 0
+    ifTrue: [ 0 ]
+    ifFalse: [ buckets at: bucketIndex ifAbsent: [ curr ] ].
+  ^ curr - prev
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> gtCompletionsFor: aView [
+  <gtView>
+  | k |
+  k := self selected ifNil: [ ^ aView empty ].
+  k displayCutoff: self cutoff.
+  ^ k gtCompletionsFor: aView
+
+]
+
+{ #category : 'as yet unclassified' }
 InternerModel >> gtKeysFor: aView [
   <gtView>
   ^ aView columnedList
@@ -166,69 +289,71 @@ InternerModel >> gtKeysFor: aView [
 { #category : 'as yet unclassified' }
 InternerModel >> gtKeysSortableFor: aView [
   <gtView>
+  | list listElement toolbar root bucketLabel statsLabel |
+
+  list := GtPhlowColumnedListView new
+  title: 'Keys';
+  items: [ self keysOrderedForCurrentBucket ];
+  column: 'Key' text: [:k | k name];
+  column: '#'
+    text: [:k | (self countForKey: k bucket: self currentBucketIndex) asString ];
+  column: 'Δ'
+    text: [:k | (self deltaForKey: k bucket: self currentBucketIndex) asString ];
+  send: [:k | self selected: k. k ].
+
+
+  listElement := list asElement.
+
+  bucketLabel := BlTextElement new
+    text: ('# @' , ((self currentBucketIndex + 1) * self bucketSizeWords) asString) asRopedText;
+    constraintsDo: [:c | c horizontal fitContent. c vertical fitContent].
+
+  statsLabel := BlTextElement new
+    text: ('keys≥1: ' , (self keysWithCompletionsAt: self currentBucketIndex) asString ,
+            ' (Δ ' , (self keysDeltaAt: self currentBucketIndex) asString , ')') asRopedText;
+    constraintsDo: [:c | c horizontal fitContent. c vertical fitContent].
+
+  toolbar := BlElement new
+    layout: BlLinearLayout horizontal;
+    constraintsDo: [:c | c horizontal fitContent. c vertical fitContent ].
+  toolbar addChild: bucketLabel.
+  toolbar addChild: statsLabel.
+  toolbar addChild: (
+    BrButton new
+      aptitude: BrGlamorousButtonWithLabelAptitude new;
+      label: '-';
+      constraintsDo: [:c | c horizontal fitContent. c vertical fitContent. c margin: (BlInsets all: 4)];
+      action: [
+        self bumpBucket: -1.
+        bucketLabel text: ('# @' , ((self currentBucketIndex + 1) * self bucketSizeWords) asString) asRopedText.
+        statsLabel text: ('keys≥1: ' , (self keysWithCompletionsAt: self currentBucketIndex) asString ,
+                          ' (Δ ' , (self keysDeltaAt: self currentBucketIndex) asString , ')') asRopedText.
+        list items: [ self keysOrderedForCurrentBucket ].
+        list updateContent: listElement ]).
+  toolbar addChild: (
+    BrButton new
+      aptitude: BrGlamorousButtonWithLabelAptitude new;
+      label: '+';
+      constraintsDo: [:c | c horizontal fitContent. c vertical fitContent. c margin: (BlInsets all: 4)];
+      action: [
+        self bumpBucket: 1.
+        bucketLabel text: ('# @' , ((self currentBucketIndex + 1) * self bucketSizeWords) asString) asRopedText.
+        statsLabel text: ('keys≥1: ' , (self keysWithCompletionsAt: self currentBucketIndex) asString ,
+                          ' (Δ ' , (self keysDeltaAt: self currentBucketIndex) asString , ')') asRopedText.
+        list items: [ self keysOrderedForCurrentBucket ].
+        list updateContent: listElement ]).
+
+  root := BlElement new
+    layout: BlLinearLayout vertical;
+    constraintsDo: [:c | c horizontal matchParent. c vertical matchParent];
+    addChild: toolbar;
+    addChild: listElement;
+    yourself.
+
   ^ aView explicit
-    title: 'Keys (sortable)';
+    title: 'Keys (bucketed)';
     priority: 10;
-    stencil: [
-      | sorter list listElement toolbar root |
-
-      sorter := [:a :b | a name <= b name].
-
-      list := GtPhlowColumnedListView new
-        title: 'Keys';
-        items: [ self keys ]; "export is already count-desc"
-        column: 'Key' text: [:k | k name];
-        column: '# Completions' text: [:k | (self completionCounts at: k name ifAbsent: [0]) asString ].
-
-      listElement := list asElement.
-
-      toolbar := BlElement new
-        layout: BlLinearLayout horizontal;
-        constraintsDo: [:c | c horizontal fitContent. c vertical fitContent].
-
-      "Name ↑"
-      toolbar addChild: (BrButton new
-        aptitude: BrGlamorousButtonWithLabelAptitude new;
-        label: 'Name ↑';
-        constraintsDo: [:c | c horizontal fitContent. c vertical fitContent. c margin: (BlInsets all: 4)];
-        action: [
-          sorter := [:a :b | a name <= b name].
-          list items: [ self keys asSortedCollection: sorter ].
-          list updateContent: listElement ]).
-
-      "Name ↓"
-      toolbar addChild: (BrButton new
-        aptitude: BrGlamorousButtonWithLabelAptitude new;
-        label: 'Name ↓';
-        constraintsDo: [:c | c horizontal fitContent. c vertical fitContent. c margin: (BlInsets all: 4)];
-        action: [
-          sorter := [:a :b | a name >= b name].
-          list items: [ self keys asSortedCollection: sorter ].
-          list updateContent: listElement ]).
-
-      "Count ↓ (use exported order)"
-      toolbar addChild: (BrButton new
-        aptitude: BrGlamorousButtonWithLabelAptitude new;
-        label: 'Count ↓';
-        constraintsDo: [:c | c horizontal fitContent. c vertical fitContent. c margin: (BlInsets all: 4)];
-        action: [
-          list items: [ self keys ].  "already count-desc"
-          list updateContent: listElement ]).
-
-      "Count ↑ (reverse)"
-      toolbar addChild: (BrButton new
-        aptitude: BrGlamorousButtonWithLabelAptitude new;
-        label: 'Count ↑';
-        constraintsDo: [:c | c horizontal fitContent. c vertical fitContent. c margin: (BlInsets all: 4)];
-        action: [
-          list items: [ self keys reversed ].
-          list updateContent: listElement ]).
-
-      root := BlElement new
-        layout: BlLinearLayout vertical;
-        addChild: toolbar;
-        addChild: listElement;
-        yourself ].
+    stencil: [ root ]
 
 ]
 
@@ -244,6 +369,51 @@ InternerModel >> initialize [
 { #category : 'accessor' }
 InternerModel >> keys [
 	^ keys
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> keysDeltaAt: bucketIndex [
+  | curr prev |
+  curr := self keysWithCompletionsAt: bucketIndex.
+  prev := bucketIndex = 0
+    ifTrue: [ 0 ]
+    ifFalse: [ self keysWithCompletionsAt: bucketIndex - 1 ].
+  ^ curr - prev
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> keysOrderedForCurrentBucket [
+  | bucket order |
+  bucket := self currentBucketIndex.
+  order := self orderForBucket: bucket.
+  order isEmpty ifTrue: [ ^ self keys ].
+  ^ order collect: [:idx | self keys at: idx + 1]
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> keysWithCompletionsAt: bucketIndex [
+  | count val |
+  (self keysWithCompletionsCache includesKey: bucketIndex) ifTrue: [
+    ^ self keysWithCompletionsCache at: bucketIndex ].
+  count := 0.
+  self bucketCounts keysAndValuesDo: [:keyName :buckets |
+    buckets isEmpty
+      ifTrue: [ val := 0 ]
+      ifFalse: [
+        ((bucketIndex + 1) > buckets size)
+          ifTrue: [ val := buckets last ]
+          ifFalse: [ val := buckets at: bucketIndex + 1 ] ].
+    val > 0 ifTrue: [ count := count + 1 ] ].
+  self keysWithCompletionsCache at: bucketIndex put: count.
+  ^ count
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> keysWithCompletionsCache [ ^ keysWithCompletionsCache ifNil: [ keysWithCompletionsCache := Dictionary new ].
+
 ]
 
 { #category : 'accessing' }
@@ -272,22 +442,27 @@ InternerModel >> loadIndexVocab: aVocab keysEntries: entries baseDir: baseDir [
   | summaries |
   self vocab: aVocab.
   self completionCounts: Dictionary new.
+  self bucketCounts: Dictionary new.
   self chunkMap: Dictionary new.
   summaries := entries collect: [:entry |
-    | words keyName count chunkFile chunkPath key |
+    | words keyName count chunkFile chunkPath buckets key |
     words := entry at: 'words' ifAbsent: [ #() ].
     keyName := self class joinWords: words.
     count := entry at: 'completion_count' ifAbsent: [ 0 ].
     chunkFile := entry at: 'chunk' ifAbsent: [ '' ].
     chunkPath := baseDir ifNotNil: [ (baseDir / chunkFile) fullName ] ifNil: [ chunkFile ].
+    buckets := entry at: 'counts_by_word_bucket' ifAbsent: [ #() ].
     self completionCounts at: keyName put: count.
+    self bucketCounts at: keyName put: buckets.
     self chunkMap at: keyName put: chunkPath.
     key := InternerKey fromName: keyName completions: #().
-    key chunkPath: chunkPath.  "requires chunkPath accessors on InternerKey"
+    key chunkPath: chunkPath.
+    key displayCutoff: self cutoff.
     key ].
   keys := summaries.
-  selected := keys ifEmpty: [ nil ] ifNotEmpty: [ keys first ].
-  ^ self
+self selected: (keys ifEmpty: [ nil ] ifNotEmpty: [ keys first ]).
+^ self
+
 
 ]
 
@@ -299,6 +474,85 @@ InternerModel >> loadVocab: someVocab keys: someKeys comps: aDict [
     InternerKey fromName: k completions: (aDict at: k ifAbsent: [ #() ])].
   selected := keys ifEmpty: [ nil ] ifNotEmpty: [ keys first ].
   ^ self
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> maxSentence [
+  ^ maxSentence ifNil: [ 0 ]
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> maxSentence: aNumber [
+  maxSentence := aNumber
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> maxWords [
+^ maxWords ifNil: [ 0 ]
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> maxWords: n [    
+	maxWords := n
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> orderCache [ 
+^ orderCache ifNil: [ orderCache := Dictionary new ].
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> orderFiles [ 
+	^ orderFiles.
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> orderFiles: aColl [ 
+	orderFiles := aColl.
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> orderForBucket: bucketIndex [
+  | fname path bytes count order |
+  fname := self orderFiles at: bucketIndex + 1 ifAbsent: [ ^ #() ].
+  (self orderCache includesKey: bucketIndex) ifTrue: [ ^ self orderCache at: bucketIndex ].
+  path := (self ordersBaseDir ifNil: [ FileSystem workingDirectory ]) / fname.
+  bytes := path binaryReadStream contents.
+  count := bytes size // 4.
+  order := Array new: count.
+  1 to: count do: [:i |
+    | offset |
+    offset := (i - 1) * 4 + 1.
+    order at: i put: (bytes unsignedLongAt: offset bigEndian: false) ].
+  self orderCache at: bucketIndex put: order.
+  ^ order
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> ordersBaseDir [ 
+	^ ordersBaseDir.
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> ordersBaseDir: aString [ 
+	ordersBaseDir := aString.
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> selected [
+  ^ selected ifNil: [ (keys ifNil: [ #() ]) ifEmpty: [ nil ] ifNotEmpty: [ keys first ] ]
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> selected: aKey [
+  selected := aKey.
+  selected ifNotNil: [ selected displayCutoff: self cutoff ].
 
 ]
 

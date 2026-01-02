@@ -5,7 +5,8 @@ Class {
 		'name',
 		'completions',
 		'words',
-		'chunkPath'
+		'chunkPath',
+		'displayCutoff'
 	],
 	#category : 'InternerExplorer',
 	#package : 'InternerExplorer'
@@ -40,35 +41,57 @@ InternerKey >> chunkPath: p [
 
 { #category : 'as yet unclassified' }
 InternerKey >> completions [
-	^ completions
+	^ completions ifNil: [ completions := #() ].
+]
+
+{ #category : 'as yet unclassified' }
+InternerKey >> displayCutoff [ 
+^ displayCutoff ifNil: [ SmallInteger maxVal ].
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerKey >> displayCutoff: aNumber [
+  displayCutoff := aNumber.
+
+
 ]
 
 { #category : 'as yet unclassified' }
 InternerKey >> ensureCompletionsLoaded [
-  "Fill completions from the chunk file if they are empty."
-  | json entry |
-  completions ifNotEmpty: [ ^ self ].
-  (self chunkPath isNil or: [ self chunkPath isEmpty ]) ifTrue: [ ^ self ].
+  | json entry targetWords |
+  completions ifNotNil: [ ^ completions ].
+  chunkPath ifNil: [ ^ completions := #() ].
 
-  json := NeoJSONReader fromString: (self chunkPath asFileReference contents).
-  entry := (json at: 'keys' ifAbsent: [ #() ]) detect: [ :each |
-    (InternerModel joinWords: (each at: 'words' ifAbsent: [ #() ])) = self name
+  json := NeoJSONReader fromString: (chunkPath asFileReference contents).
+  targetWords := self name substrings: ' '.
+  entry := (json at: 'keys' ifAbsent: [ #() ]) detect: [:each |
+    (each at: 'words' ifAbsent: [ #() ]) = targetWords
   ] ifNone: [ nil ].
-  entry ifNotNil: [
-    completions := entry at: 'completions' ifAbsent: [ #() ] ].
-  ^ self
+  entry ifNil: [ ^ completions := #() ].
+
+  completions := (entry at: 'completions' ifAbsent: [ #() ]) collect: [:c |
+    { c at: 'word' ifAbsent: [''].
+      c at: 'first_word_pos' ifAbsent: [ 0 ] } ].
+  ^ completions
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerKey >> filteredCompletionsUpTo: cutoff [
+  ^ self completions select: [:c | c second <= cutoff]
 
 ]
 
 { #category : 'as yet unclassified' }
 InternerKey >> gtCompletionsFor: aView [
   <gtView>
-  self ensureCompletionsLoaded.
+  self refreshCompletions.
   ^ aView columnedList
-      title: 'Completions';
-      items: [ completions ];
-      column: 'Word' text: [:c | c at: 'word' ifAbsent: [ c ]];
-      column: 'Pos'  text: [:c | (c at: 'first_pos' ifAbsent: '') asString ].
+    title: 'Completions';
+    items: [ self filteredCompletionsUpTo: self displayCutoff ];
+    column: 'Word' text: [:c | c first];
+    column: 'Pos'  text: [:c | c second asString ]
 
 ]
 
@@ -87,6 +110,13 @@ InternerKey >> name: aString completions: aCollection [
   name := aString.
   completions := aCollection.
   ^ self
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerKey >> refreshCompletions [
+  completions := nil.
+  ^ self ensureCompletionsLoaded
 
 ]
 
