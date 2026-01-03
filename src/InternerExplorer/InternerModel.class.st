@@ -16,7 +16,8 @@ Class {
 		'orderFiles',
 		'ordersBaseDir',
 		'orderCache',
-		'keysWithCompletionsCache'
+		'keysWithCompletionsCache',
+		'minKeyLength'
 	],
 	#category : 'InternerExplorer',
 	#package : 'InternerExplorer'
@@ -289,59 +290,86 @@ InternerModel >> gtKeysFor: aView [
 { #category : 'as yet unclassified' }
 InternerModel >> gtKeysSortableFor: aView [
   <gtView>
-  | list listElement toolbar root bucketLabel statsLabel |
+  | list listElement toolbar root bucketLabel statsLabel minLabel updateHeader |
 
   list := GtPhlowColumnedListView new
-  title: 'Keys';
-  items: [ self keysOrderedForCurrentBucket ];
-  column: 'Key' text: [:k | k name];
-  column: '#'
-    text: [:k | (self countForKey: k bucket: self currentBucketIndex) asString ];
-  column: 'Δ'
-    text: [:k | (self deltaForKey: k bucket: self currentBucketIndex) asString ];
-  send: [:k | self selected: k. k ].
-
+    title: 'Keys';
+    items: [ self keysOrderedForCurrentBucket ];
+    column: 'Key' text: [:k | k name];
+    column: '#'
+      text: [:k | (self countForKey: k bucket: self currentBucketIndex) asString ];
+    column: 'Δ'
+      text: [:k | (self deltaForKey: k bucket: self currentBucketIndex) asString ].
 
   listElement := list asElement.
 
   bucketLabel := BlTextElement new
-    text: ('# @' , ((self currentBucketIndex + 1) * self bucketSizeWords) asString) asRopedText;
-    constraintsDo: [:c | c horizontal fitContent. c vertical fitContent].
-
+    constraintsDo: [:c | c horizontal fitContent. c vertical fitContent ].
   statsLabel := BlTextElement new
-    text: ('keys≥1: ' , (self keysWithCompletionsAt: self currentBucketIndex) asString ,
-            ' (Δ ' , (self keysDeltaAt: self currentBucketIndex) asString , ')') asRopedText;
-    constraintsDo: [:c | c horizontal fitContent. c vertical fitContent].
+    constraintsDo: [:c | c horizontal fitContent. c vertical fitContent ].
+  minLabel := BlTextElement new
+    constraintsDo: [:c | c horizontal fitContent. c vertical fitContent ].
+
+  updateHeader := [
+    | b minLen fCount fDelta |
+    bucketLabel text: ('# @' , ((self currentBucketIndex + 1) * self bucketSizeWords) asString) asRopedText.
+    minLabel text: ('min len ' , self minKeyLength asString) asRopedText.
+    b := self currentBucketIndex.
+    minLen := self minKeyLength.
+    fCount := self keysWithCompletionsAt: b minLength: minLen.
+    fDelta := self keysDeltaAt: b minLength: minLen.
+    statsLabel text: ('keys≥1 ' , fCount asString , ' (Δ ' , fDelta asString , ')') asRopedText.
+  ].
+  updateHeader value.
 
   toolbar := BlElement new
     layout: BlLinearLayout horizontal;
-    constraintsDo: [:c | c horizontal fitContent. c vertical fitContent ].
-  toolbar addChild: bucketLabel.
-  toolbar addChild: statsLabel.
-  toolbar addChild: (
-    BrButton new
-      aptitude: BrGlamorousButtonWithLabelAptitude new;
-      label: '-';
-      constraintsDo: [:c | c horizontal fitContent. c vertical fitContent. c margin: (BlInsets all: 4)];
-      action: [
-        self bumpBucket: -1.
-        bucketLabel text: ('# @' , ((self currentBucketIndex + 1) * self bucketSizeWords) asString) asRopedText.
-        statsLabel text: ('keys≥1: ' , (self keysWithCompletionsAt: self currentBucketIndex) asString ,
-                          ' (Δ ' , (self keysDeltaAt: self currentBucketIndex) asString , ')') asRopedText.
-        list items: [ self keysOrderedForCurrentBucket ].
-        list updateContent: listElement ]).
-  toolbar addChild: (
-    BrButton new
-      aptitude: BrGlamorousButtonWithLabelAptitude new;
-      label: '+';
-      constraintsDo: [:c | c horizontal fitContent. c vertical fitContent. c margin: (BlInsets all: 4)];
-      action: [
-        self bumpBucket: 1.
-        bucketLabel text: ('# @' , ((self currentBucketIndex + 1) * self bucketSizeWords) asString) asRopedText.
-        statsLabel text: ('keys≥1: ' , (self keysWithCompletionsAt: self currentBucketIndex) asString ,
-                          ' (Δ ' , (self keysDeltaAt: self currentBucketIndex) asString , ')') asRopedText.
-        list items: [ self keysOrderedForCurrentBucket ].
-        list updateContent: listElement ]).
+    constraintsDo: [:c | c horizontal fitContent. c vertical fitContent ];
+    addChild: bucketLabel;
+    addChild: (BlTextElement new text: '   ' asRopedText);
+    addChild: statsLabel;
+    addChild: (BlTextElement new text: '   ' asRopedText);
+    addChild: minLabel;
+    addChild: (
+      BrButton new
+        aptitude: BrGlamorousButtonWithLabelAptitude new;
+        label: '-len';
+        constraintsDo: [:c | c horizontal fitContent. c vertical fitContent. c margin: (BlInsets all: 4)];
+        action: [
+          self minKeyLength: (self minKeyLength - 1).
+          updateHeader value.
+          list items: [ self keysOrderedForCurrentBucket ].
+          list updateContent: listElement ]);
+    addChild: (
+      BrButton new
+        aptitude: BrGlamorousButtonWithLabelAptitude new;
+        label: '+len';
+        constraintsDo: [:c | c horizontal fitContent. c vertical fitContent. c margin: (BlInsets all: 4)];
+        action: [
+          self minKeyLength: (self minKeyLength + 1).
+          updateHeader value.
+          list items: [ self keysOrderedForCurrentBucket ].
+          list updateContent: listElement ]);
+    addChild: (
+      BrButton new
+        aptitude: BrGlamorousButtonWithLabelAptitude new;
+        label: '-';
+        constraintsDo: [:c | c horizontal fitContent. c vertical fitContent. c margin: (BlInsets all: 4)];
+        action: [
+          self bumpBucket: -1.
+          updateHeader value.
+          list items: [ self keysOrderedForCurrentBucket ].
+          list updateContent: listElement ]);
+    addChild: (
+      BrButton new
+        aptitude: BrGlamorousButtonWithLabelAptitude new;
+        label: '+';
+        constraintsDo: [:c | c horizontal fitContent. c vertical fitContent. c margin: (BlInsets all: 4)];
+        action: [
+          self bumpBucket: 1.
+          updateHeader value.
+          list items: [ self keysOrderedForCurrentBucket ].
+          list updateContent: listElement ]).
 
   root := BlElement new
     layout: BlLinearLayout vertical;
@@ -366,6 +394,16 @@ InternerModel >> initialize [
   selected := nil.
 ]
 
+{ #category : 'as yet unclassified' }
+InternerModel >> keyLengthOf: aKey [
+  ^ (aKey name substrings: ' ') size
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> keyLengthOfName: aString [
+  ^ (aString substrings: ' ') size
+]
+
 { #category : 'accessor' }
 InternerModel >> keys [
 	^ keys
@@ -383,12 +421,25 @@ InternerModel >> keysDeltaAt: bucketIndex [
 ]
 
 { #category : 'as yet unclassified' }
+InternerModel >> keysDeltaAt: bucketIndex minLength: minLen [
+  | curr prev |
+  curr := self keysWithCompletionsAt: bucketIndex minLength: minLen.
+  prev := bucketIndex = 0
+    ifTrue: [ 0 ]
+    ifFalse: [ self keysWithCompletionsAt: bucketIndex - 1 minLength: minLen ].
+  ^ curr - prev
+
+]
+
+{ #category : 'as yet unclassified' }
 InternerModel >> keysOrderedForCurrentBucket [
-  | bucket order |
+  | bucket order ordered |
   bucket := self currentBucketIndex.
   order := self orderForBucket: bucket.
-  order isEmpty ifTrue: [ ^ self keys ].
-  ^ order collect: [:idx | self keys at: idx + 1]
+  ordered := order isEmpty
+    ifTrue: [ self keys ]
+    ifFalse: [ order collect: [:idx | self keys at: idx + 1 ] ].
+  ^ ordered select: [:k | (self keyLengthOf: k) >= self minKeyLength]
 
 ]
 
@@ -407,6 +458,24 @@ InternerModel >> keysWithCompletionsAt: bucketIndex [
           ifFalse: [ val := buckets at: bucketIndex + 1 ] ].
     val > 0 ifTrue: [ count := count + 1 ] ].
   self keysWithCompletionsCache at: bucketIndex put: count.
+  ^ count
+
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> keysWithCompletionsAt: bucketIndex minLength: minLen [
+  | count |
+  count := 0.
+  self bucketCounts keysAndValuesDo: [:keyName :buckets |
+    (self keyLengthOfName: keyName) >= minLen ifTrue: [
+      | val |
+      buckets isEmpty
+        ifTrue: [ val := 0 ]
+        ifFalse: [
+          ((bucketIndex + 1) > buckets size)
+            ifTrue: [ val := buckets last ]
+            ifFalse: [ val := buckets at: bucketIndex + 1 ] ].
+      val > 0 ifTrue: [ count := count + 1 ] ] ].
   ^ count
 
 ]
@@ -497,6 +566,17 @@ InternerModel >> maxWords [
 { #category : 'as yet unclassified' }
 InternerModel >> maxWords: n [    
 	maxWords := n
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> minKeyLength [
+  ^ minKeyLength ifNil: [ minKeyLength := 1 ].
+]
+
+{ #category : 'as yet unclassified' }
+InternerModel >> minKeyLength: anInteger [
+  minKeyLength := anInteger max: 1.
+
 ]
 
 { #category : 'as yet unclassified' }

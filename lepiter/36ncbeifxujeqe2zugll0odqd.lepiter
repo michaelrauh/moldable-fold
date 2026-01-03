@@ -100,14 +100,14 @@
 					"__type" : "time",
 					"time" : {
 						"__type" : "dateAndTime",
-						"dateAndTimeString" : "2026-01-02T11:14:05.44948-05:00"
+						"dateAndTimeString" : "2026-01-02T15:41:06.783973-05:00"
 					}
 				},
 				"uid" : {
 					"__type" : "uid",
 					"uidString" : "mXp4HdekR2SKVBIGEpyXwg=="
 				},
-				"code" : ""
+				"code" : "m := InternerModel fromIndexFile: '/Users/michaelrauh/dev/fold/data/interner_export/interner_index.json'.\n"
 			}
 		]
 	},
