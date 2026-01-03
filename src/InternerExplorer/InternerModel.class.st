@@ -292,14 +292,18 @@ InternerModel >> gtKeysSortableFor: aView [
   <gtView>
   | list listElement toolbar root bucketLabel statsLabel minLabel updateHeader |
 
-  list := GtPhlowColumnedListView new
-    title: 'Keys';
-    items: [ self keysOrderedForCurrentBucket ];
-    column: 'Key' text: [:k | k name];
-    column: '#'
-      text: [:k | (self countForKey: k bucket: self currentBucketIndex) asString ];
-    column: 'Δ'
-      text: [:k | (self deltaForKey: k bucket: self currentBucketIndex) asString ].
+list := GtPhlowColumnedListView new
+  title: 'Keys';
+  items: [ self keysOrderedForCurrentBucket ];
+  column: 'Key' text: [:k | k name];
+  column: '#'
+    text: [:k | (self countForKey: k bucket: self currentBucketIndex) asString ];
+  column: 'Δ'
+    text: [:k | (self deltaForKey: k bucket: self currentBucketIndex) asString ];
+  send: [:k |
+    self selected: k.
+    k displayCutoff: self cutoff.
+    k ].
 
   listElement := list asElement.
 
