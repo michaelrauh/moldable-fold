@@ -66,14 +66,14 @@
 					"__type" : "time",
 					"time" : {
 						"__type" : "dateAndTime",
-						"dateAndTimeString" : "2026-01-03T19:11:56.879773-05:00"
+						"dateAndTimeString" : "2026-01-04T14:15:43.192008-05:00"
 					}
 				},
 				"uid" : {
 					"__type" : "uid",
 					"uidString" : "Mvhfg1WGQiGkdegZjSTH2Q=="
 				},
-				"code" : "m := OrthoModel fromFile: '/Users/michaelrauh/dev/fold/data/ortho_exports/ortho_index_0500.json'."
+				"code" : "im := InternerModel fromIndexFile: '/Users/michaelrauh/dev/fold/data/interner_export/interner_index.json'.\n\r\rom := OrthoModel fromFile: '/Users/michaelrauh/dev/fold/data/ortho_exports/ortho_index_1000.json'.\r\rom internerModel: im."
 			},
 			{
 				"__type" : "pharoSnippet",
@@ -89,7 +89,7 @@
 					"__type" : "time",
 					"time" : {
 						"__type" : "dateAndTime",
-						"dateAndTimeString" : "2026-01-04T12:01:38.687374-05:00"
+						"dateAndTimeString" : "2026-01-04T14:18:52.889214-05:00"
 					}
 				},
 				"editEmail" : {
@@ -100,14 +100,14 @@
 					"__type" : "time",
 					"time" : {
 						"__type" : "dateAndTime",
-						"dateAndTimeString" : "2026-01-04T12:01:58.358506-05:00"
+						"dateAndTimeString" : "2026-01-04T17:48:00.254909-05:00"
 					}
 				},
 				"uid" : {
 					"__type" : "uid",
-					"uidString" : "er63O5MMQeKWMQjsSu14rQ=="
+					"uidString" : "8l+74fvbTUuXLWWXpxSbEQ=="
 				},
-				"code" : "empty := m records detect: [:r | (r at: 'required_keys') isEmpty] ifNone: [nil].\n{ empty notNil. empty ifNotNil: [ empty at: 'ortho_id' ]. }\n"
+				"code" : "om internerModel.\n"
 			}
 		]
 	},

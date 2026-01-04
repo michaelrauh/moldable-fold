@@ -5,7 +5,8 @@ Class {
 		'idIndex',
 		'records',
 		'current',
-		'stride'
+		'stride',
+		'internerModel'
 	],
 	#category : 'InternerExplorer',
 	#package : 'InternerExplorer'
@@ -22,6 +23,10 @@ OrthoModel class >> fromFile: aPath [
   model current: (model records ifEmpty: [ nil ] ifNotEmpty: [ model records first ]).
   ^ model
 
+]
+
+{ #category : 'as yet unclassified' }
+OrthoModel >> baseDir [
 ]
 
 { #category : 'as yet unclassified' }
@@ -62,86 +67,116 @@ OrthoModel >> gtOrthoFor: aView [
     title: 'Ortho';
     priority: 10;
     stencil: [
-      | root dispLabel dispElement reqLabel reqElement forbLabel forbElement candLabel candElement displayString |
+      | displayString dispBox reqElement forbElement candElement root |
 
-      displayString := self current at: 'display' ifAbsent: ['(no display)'].
+      displayString := self current at: 'display' ifAbsent: [ '(no display)' ].
 
-      dispLabel := BlTextElement new
-        text: 'Ortho' asRopedText;
-        constraintsDo: [:c | c horizontal fitContent. c vertical fitContent ].
-
-      dispElement := BlElement new
+      dispBox := BlElement new
         layout: BlLinearLayout vertical;
         constraintsDo: [:c | c horizontal fitContent. c vertical fitContent ].
       displayString lines do: [:line |
-        dispElement addChild: (BlTextElement new
+        dispBox addChild: (BlTextElement new
           text: line asRopedText;
-          constraintsDo: [:c | c horizontal fitContent. c vertical fitContent ])].
+          constraintsDo: [:c | c horizontal fitContent. c vertical fitContent ]) ].
 
-      reqLabel := BlTextElement new
-        text: 'Required keys' asRopedText;
-        constraintsDo: [:c | c horizontal fitContent. c vertical fitContent ].
       reqElement := (self requiredKeys isEmpty
         ifTrue: [ BlTextElement new text: '(none)' asRopedText ]
         ifFalse: [
           (GtPhlowColumnedListView new
             title: 'Required';
             items: [ self requiredKeys ];
-            column: 'Key' text: [:k |
-              (k respondsTo: #joinSeparatedBy:)
-                ifTrue: [ k joinSeparatedBy: ' ' ]
-                ifFalse: [ k asString ] ]) asElement
-        ]).
+            column: 'Key' text: [:k | self keyNameFor: k ];
+            send: [:k |
+              | name ik |
+              name := self keyNameFor: k.
+              self internerModel ifNotNil: [:im |
+                ik := im findKeyNamed: name.
+                ik ifNotNil: [ im selected: ik ] ].
+              ik ]) asElement ]).
 
-      forbLabel := BlTextElement new
-        text: 'Forbidden keys' asRopedText;
-        constraintsDo: [:c | c horizontal fitContent. c vertical fitContent ].
       forbElement := (self forbiddenKeys isEmpty
         ifTrue: [ BlTextElement new text: '(none)' asRopedText ]
         ifFalse: [
           (GtPhlowColumnedListView new
             title: 'Forbidden';
             items: [ self forbiddenKeys ];
-            column: 'Key' text: [:k |
-              (k respondsTo: #joinSeparatedBy:)
-                ifTrue: [ k joinSeparatedBy: ' ' ]
-                ifFalse: [ k asString ] ]) asElement
-        ]).
+            column: 'Key' text: [:k | self keyNameFor: k ]) asElement ]).
 
-      candLabel := BlTextElement new
-        text: 'Candidates' asRopedText;
-        constraintsDo: [:c | c horizontal fitContent. c vertical fitContent ].
       candElement := (GtPhlowColumnedListView new
         title: 'Candidates';
         items: [ self candidates ];
         column: 'Word' text: [:c | c at: 'word' ifAbsent: [''] ];
         column: 'Min input' text: [:c | (c at: 'min_input' ifAbsent: [0]) asString ];
         column: 'Child id' text: [:c | (c at: 'child_id' ifAbsent: [0]) asString ];
-        send: [:c |
-          self selectById: (c at: 'child_id' ifAbsent: [ nil ]).
-          self ]) asElement.
+        send: [:c | self orthoForId: (c at: 'child_id' ifAbsent: [ nil ]) ]) asElement.
 
       root := BlElement new
         layout: BlLinearLayout vertical;
         constraintsDo: [:c | c horizontal matchParent. c vertical matchParent ];
-        addChild: dispLabel;
-        addChild: dispElement;
+        addChild: (BlTextElement new text: 'Ortho' asRopedText);
+        addChild: dispBox;
         addChild: (BlElement new height: 8);
-        addChild: reqLabel;
+        addChild: (BlTextElement new text: 'Required keys' asRopedText);
         addChild: reqElement;
         addChild: (BlElement new height: 4);
-        addChild: forbLabel;
+        addChild: (BlTextElement new text: 'Forbidden keys' asRopedText);
         addChild: forbElement;
         addChild: (BlElement new height: 8);
-        addChild: candLabel;
+        addChild: (BlTextElement new text: 'Candidates' asRopedText);
         addChild: candElement;
-        yourself.
-      root ]
+        yourself ]
 
 ]
 
 { #category : 'as yet unclassified' }
 OrthoModel >> idIndex [ ^ idIndex.
+]
+
+{ #category : 'accessing' }
+OrthoModel >> idIndex: anObject [
+	idIndex := anObject
+]
+
+{ #category : 'as yet unclassified' }
+OrthoModel >> internerModel [
+  ^ internerModel
+
+]
+
+{ #category : 'as yet unclassified' }
+OrthoModel >> internerModel: aModel [
+  internerModel := aModel
+]
+
+{ #category : 'as yet unclassified' }
+OrthoModel >> keyNameFor: aKey [
+  (aKey isArray or: [aKey isKindOf: SequenceableCollection]) ifTrue: [
+    ^ String streamContents: [:s |
+      aKey doWithIndex: [:w :i | s nextPutAll: w asString. i < aKey size ifTrue: [ s space ] ] ] ].
+  ^ aKey asString
+
+]
+
+{ #category : 'as yet unclassified' }
+OrthoModel >> orthoById: anId [
+  anId ifNil: [ ^ nil ].
+  ^ (self idIndex at: anId ifAbsent: [
+       self idIndex at: anId asString ifAbsent: [ nil ] ])
+
+]
+
+{ #category : 'as yet unclassified' }
+OrthoModel >> orthoForId: anId [
+  | childDict child |
+  childDict := self orthoById: anId.
+  childDict ifNil: [ ^ nil ].
+  child := self class new.
+  child idIndex: self idIndex.
+  child internerModel: self internerModel.
+  child stride: self stride.  "omit if you don’t use stride"
+  child current: childDict.
+  ^ child
+
 ]
 
 { #category : 'as yet unclassified' }

@@ -66,14 +66,14 @@
 					"__type" : "time",
 					"time" : {
 						"__type" : "dateAndTime",
-						"dateAndTimeString" : "2026-01-03T19:11:56.879773-05:00"
+						"dateAndTimeString" : "2026-01-04T14:15:43.192008-05:00"
 					}
 				},
 				"uid" : {
 					"__type" : "uid",
 					"uidString" : "Mvhfg1WGQiGkdegZjSTH2Q=="
 				},
-				"code" : "m := OrthoModel fromFile: '/Users/michaelrauh/dev/fold/data/ortho_exports/ortho_index_0500.json'."
+				"code" : "im := InternerModel fromIndexFile: '/Users/michaelrauh/dev/fold/data/interner_export/interner_index.json'.\n\r\rom := OrthoModel fromFile: '/Users/michaelrauh/dev/fold/data/ortho_exports/ortho_index_1000.json'.\r\rom internerModel: im."
 			},
 			{
 				"__type" : "pharoSnippet",
@@ -89,7 +89,7 @@
 					"__type" : "time",
 					"time" : {
 						"__type" : "dateAndTime",
-						"dateAndTimeString" : "2026-01-04T12:01:38.687374-05:00"
+						"dateAndTimeString" : "2026-01-04T14:18:52.889214-05:00"
 					}
 				},
 				"editEmail" : {
@@ -100,48 +100,14 @@
 					"__type" : "time",
 					"time" : {
 						"__type" : "dateAndTime",
-						"dateAndTimeString" : "2026-01-04T12:01:58.358506-05:00"
+						"dateAndTimeString" : "2026-01-04T17:48:15.792976-05:00"
 					}
 				},
 				"uid" : {
 					"__type" : "uid",
-					"uidString" : "er63O5MMQeKWMQjsSu14rQ=="
+					"uidString" : "8l+74fvbTUuXLWWXpxSbEQ=="
 				},
-				"code" : "empty := m records detect: [:r | (r at: 'required_keys') isEmpty] ifNone: [nil].\n{ empty notNil. empty ifNotNil: [ empty at: 'ortho_id' ]. }\n"
-			},
-			{
-				"__type" : "pharoSnippet",
-				"children" : {
-					"__type" : "snippets",
-					"items" : [ ]
-				},
-				"createEmail" : {
-					"__type" : "email",
-					"emailString" : "<unknown>"
-				},
-				"createTime" : {
-					"__type" : "time",
-					"time" : {
-						"__type" : "dateAndTime",
-						"dateAndTimeString" : "2026-01-04T13:44:04.418174-05:00"
-					}
-				},
-				"editEmail" : {
-					"__type" : "email",
-					"emailString" : "<unknown>"
-				},
-				"editTime" : {
-					"__type" : "time",
-					"time" : {
-						"__type" : "dateAndTime",
-						"dateAndTimeString" : "2026-01-04T13:44:06.457897-05:00"
-					}
-				},
-				"uid" : {
-					"__type" : "uid",
-					"uidString" : "DLOf/kHQRQS+z9LGjvSsMA=="
-				},
-				"code" : "m current at: 'display'"
+				"code" : "im := om internerModel.\nim ifNotNil: [\n  { names first.\n    im keys size.\n    im findKeyNamed: names first.\n    (im completionCounts at: names first ifAbsent: [ #missing ]) } ].\n"
 			}
 		]
 	},

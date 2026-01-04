@@ -108,6 +108,40 @@
 					"uidString" : "mXp4HdekR2SKVBIGEpyXwg=="
 				},
 				"code" : "m := InternerModel fromIndexFile: '/Users/michaelrauh/dev/fold/data/interner_export/interner_index.json'.\n"
+			},
+			{
+				"__type" : "pharoSnippet",
+				"children" : {
+					"__type" : "snippets",
+					"items" : [ ]
+				},
+				"createEmail" : {
+					"__type" : "email",
+					"emailString" : "<unknown>"
+				},
+				"createTime" : {
+					"__type" : "time",
+					"time" : {
+						"__type" : "dateAndTime",
+						"dateAndTimeString" : "2026-01-04T14:04:12.144755-05:00"
+					}
+				},
+				"editEmail" : {
+					"__type" : "email",
+					"emailString" : "<unknown>"
+				},
+				"editTime" : {
+					"__type" : "time",
+					"time" : {
+						"__type" : "dateAndTime",
+						"dateAndTimeString" : "2026-01-04T14:05:42.370896-05:00"
+					}
+				},
+				"uid" : {
+					"__type" : "uid",
+					"uidString" : "AF9gnUXaQ2qNH53i3qrrVA=="
+				},
+				"code" : "InternerKey selectors select: [:s | s includesSubstring: 'chunk']"
 			}
 		]
 	},

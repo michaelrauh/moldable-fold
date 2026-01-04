@@ -267,6 +267,12 @@ InternerModel >> deltaForKey: aKey bucket: bucketIndex [
 ]
 
 { #category : 'as yet unclassified' }
+InternerModel >> findKeyNamed: aString [
+  ^ self keys detect: [:k | k name = aString] ifNone: [ nil ]
+
+]
+
+{ #category : 'as yet unclassified' }
 InternerModel >> gtCompletionsFor: aView [
   <gtView>
   | k |
